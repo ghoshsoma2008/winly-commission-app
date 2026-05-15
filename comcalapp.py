@@ -72,7 +72,7 @@ ELIGIBILITY_MAP = {
     "Staffing 1 (>=20% markup)": 1.00,
     "Staffing 2 (10-19% markup)": 0.70,
     "Staffing 3 (<10% markup)": 0.00,
-    "Govern 365": 0.00,
+    "Govern 365": 1.00,
 }
 
 # =====================================================
