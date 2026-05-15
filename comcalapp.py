@@ -52,7 +52,7 @@ rep_config = {
     "Angira Dey": {"rate": 0.006250, "quota": 8_000_000},
     "Nicholas Simas": {"rate": 0.008, "quota": 7_500_000},
     "Chris Wilkinson": {"rate": 0.007200, "quota": 5_000_000},
-    "Mandeep Nagpal": {"rate": 0.0056130, "quota": 1_500_000},
+    "Mandeep Nagpal": {"rate": 0.0087600, "quota": 1_500_000},
 }
 
 # OTC (One-Time Credit) per CRD
