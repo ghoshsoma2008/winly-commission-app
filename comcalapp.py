@@ -293,7 +293,7 @@ def fetch_opportunities(dataverse_token):
 @st.cache_data(show_spinner=False)
 def load_staffing_rates():
     try:
-        path = "Contractor's Bill, Pay rate.xlsx"
+        path = "rates.xlsx"
         df = pd.read_excel(path, engine="openpyxl")
         df["Bill Rate"] = pd.to_numeric(df["Bill Rate"], errors="coerce")
         df["Pay Rate"] = pd.to_numeric(df["Pay Rate"], errors="coerce")
