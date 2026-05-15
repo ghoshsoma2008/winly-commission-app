@@ -801,7 +801,7 @@ def render_detail_view(df_all: pd.DataFrame):
     rep_df = build_rep_df(df_all, rep_display)
     total_clawback_adjustment = 0.0
 
-    st.subheader(f"{selected_rep} - Commission Summary (2026)")
+    
 
 
     # =============================
