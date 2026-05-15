@@ -356,7 +356,8 @@ def derive_category(workload, client_name):
     if "staffing" in txt:
         return "Staffing 2 (10-19% markup)"
     if "govern" in txt:
-        return "Consulting"  
+        return "Govern 365"
+    return "Consulting"
 
 
 def match_rep_name(df: pd.DataFrame, target_name: str) -> str:
