@@ -1,7 +1,5 @@
 streamlit==1.32.0
-pandas
-msal
-requests
-openpyxl
-gunicorn
-flask
+pandas==2.0.3
+msal==1.26.0
+requests==2.31.0
+openpyxl==3.1.2
