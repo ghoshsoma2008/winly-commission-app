@@ -534,7 +534,7 @@ def compute_summary(rep_df: pd.DataFrame, rep_name: str):
       .sum()
 )
 
-    eligible_comm = base_eligible_comm + bonus_comm
+    eligible_comm = base_eligible_comm
 
     paid_comm = eligible_comm * payout_factor
     remaining_comm = eligible_comm - paid_comm
