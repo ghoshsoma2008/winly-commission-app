@@ -627,29 +627,35 @@ DB_PATH = "commission_ledger.db"
 
 def initialize_database():
     """Create tables once if they don't exist."""
+
     with sqlite3.connect(DB_PATH) as conn:
+
         cur = conn.cursor()
+
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                rep TEXT NOT NULL,
-                amount REAL NOT NULL,
-                paid_by TEXT,
-                ts TEXT NOT NULL
-            )
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rep TEXT NOT NULL,
+            amount REAL NOT NULL,
+            paid_by TEXT,
+            ts TEXT NOT NULL
+        )
         """)
+
         cur.execute("""
-           CREATE TABLE IF NOT EXISTS clawbacks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                rep TEXT NOT NULL,
-                project TEXT NOT NULL UNIQUE,
-                amount REAL NOT NULL,
-                ts TEXT NOT NULL
-            )
+        CREATE TABLE IF NOT EXISTS clawbacks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rep TEXT NOT NULL,
+            project TEXT NOT NULL,
+            amount REAL NOT NULL,
+            ts TEXT NOT NULL
+        )
         """)
+
         conn.commit()
 
-# ✅ Call ONCE after function exists
+
+# ✅ Initialize DB once
 initialize_database()
 
 # =====================================================
@@ -657,71 +663,234 @@ initialize_database()
 # =====================================================
 
 def add_payment(rep_name: str, amount: float, paid_by: str):
+
+    if amount <= 0:
+        return
+
     with sqlite3.connect(DB_PATH) as conn:
+
         cur = conn.cursor()
-        if amount <= 0:
-            return
+
         cur.execute(
-            "INSERT INTO payments (rep, amount, paid_by, ts) VALUES (?, ?, ?, ?)",
-            (rep_name, float(amount), paid_by, datetime.utcnow().isoformat(timespec="seconds") + "Z")
+            """
+            INSERT INTO payments (rep, amount, paid_by, ts)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                rep_name,
+                float(amount),
+                paid_by,
+                datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            )
         )
-        
+
         conn.commit()
 
+
 def get_payment_history(rep_name: str):
+
     with sqlite3.connect(DB_PATH) as conn:
+
         conn.row_factory = sqlite3.Row
+
         cur = conn.cursor()
+
         cur.execute(
-            "SELECT ts, amount, paid_by FROM payments WHERE rep=? ORDER BY id DESC",
+            """
+            SELECT ts, amount, paid_by
+            FROM payments
+            WHERE rep=?
+            ORDER BY id DESC
+            """,
             (rep_name,)
         )
+
         return [dict(r) for r in cur.fetchall()]
 
 
 def get_total_paid(rep_name: str) -> float:
+
     with sqlite3.connect(DB_PATH) as conn:
+
         cur = conn.cursor()
-        cur.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE rep=?", (rep_name,))
+
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(amount),0)
+            FROM payments
+            WHERE rep=?
+            """,
+            (rep_name,)
+        )
+
         return float(cur.fetchone()[0] or 0.0)
 
+
 def clear_payment_history(rep_name: str):
+
     with sqlite3.connect(DB_PATH) as conn:
+
         cur = conn.cursor()
-        cur.execute("DELETE FROM payments WHERE rep=?", (rep_name,))
+
+        cur.execute(
+            "DELETE FROM payments WHERE rep=?",
+            (rep_name,)
+        )
+
         conn.commit()
+
 
 # =====================================================
 # CLAWBACK FUNCTIONS
 # =====================================================
 
 def add_clawback(rep_name: str, project_name: str, clawback_amount: float):
+
     with sqlite3.connect(DB_PATH) as conn:
+
         cur = conn.cursor()
+
         cur.execute(
-            "INSERT INTO clawbacks (rep, project, amount, ts) VALUES (?, ?, ?, ?)",
-            (rep_name, project_name, float(clawback_amount), datetime.utcnow().isoformat(timespec="seconds") + "Z")
+            """
+            INSERT INTO clawbacks (rep, project, amount, ts)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                rep_name,
+                project_name,
+                float(clawback_amount),
+                datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            )
         )
+
         conn.commit()
 
+
 def get_clawbacks(rep_name: str):
+
     with sqlite3.connect(DB_PATH) as conn:
+
         conn.row_factory = sqlite3.Row
+
         cur = conn.cursor()
+
         cur.execute(
-            "SELECT ts, project, amount FROM clawbacks WHERE rep=? ORDER BY rowid DESC",
+            """
+            SELECT ts, project, amount
+            FROM clawbacks
+            WHERE rep=?
+            ORDER BY id DESC
+            """,
             (rep_name,)
         )
+
         return [dict(r) for r in cur.fetchall()]
 
+
 def get_total_clawback(rep_name: str) -> float:
+
     with sqlite3.connect(DB_PATH) as conn:
+
         cur = conn.cursor()
-        cur.execute("SELECT COALESCE(SUM(amount), 0) FROM clawbacks WHERE rep=?", (rep_name,))
+
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(amount),0)
+            FROM clawbacks
+            WHERE rep=?
+            """,
+            (rep_name,)
+        )
+
         return float(cur.fetchone()[0] or 0.0)
 
 
+# =====================================================
+# QUARTER FILTER FUNCTIONS
+# =====================================================
 
+def get_total_paid_by_quarter(rep_name: str, quarter: str) -> float:
+
+    qmap = {
+        "Q1": ("01", "02", "03"),
+        "Q2": ("04", "05", "06"),
+        "Q3": ("07", "08", "09"),
+        "Q4": ("10", "11", "12"),
+    }
+
+    with sqlite3.connect(DB_PATH) as conn:
+
+        cur = conn.cursor()
+
+        if quarter == "All":
+
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(amount),0)
+                FROM payments
+                WHERE rep=?
+                """,
+                (rep_name,)
+            )
+
+        else:
+
+            months = qmap.get(quarter, ())
+            placeholders = ",".join(["?"] * len(months))
+
+            cur.execute(
+                f"""
+                SELECT COALESCE(SUM(amount),0)
+                FROM payments
+                WHERE rep=?
+                AND substr(ts,6,2) IN ({placeholders})
+                """,
+                (rep_name, *months)
+            )
+
+        return float(cur.fetchone()[0] or 0.0)
+
+
+def get_total_clawback_by_quarter(rep_name: str, quarter: str) -> float:
+
+    qmap = {
+        "Q1": ("01", "02", "03"),
+        "Q2": ("04", "05", "06"),
+        "Q3": ("07", "08", "09"),
+        "Q4": ("10", "11", "12"),
+    }
+
+    with sqlite3.connect(DB_PATH) as conn:
+
+        cur = conn.cursor()
+
+        if quarter == "All":
+
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(amount),0)
+                FROM clawbacks
+                WHERE rep=?
+                """,
+                (rep_name,)
+            )
+
+        else:
+
+            months = qmap.get(quarter, ())
+            placeholders = ",".join(["?"] * len(months))
+
+            cur.execute(
+                f"""
+                SELECT COALESCE(SUM(amount),0)
+                FROM clawbacks
+                WHERE rep=?
+                AND substr(ts,6,2) IN ({placeholders})
+                """,
+                (rep_name, *months)
+            )
+
+        return float(cur.fetchone()[0] or 0.0)
 # =====================================================
 # LOGIN + DATA LOAD
 # =====================================================
@@ -1311,17 +1480,52 @@ def render_detail_view(df_all: pd.DataFrame):
     )
 
      
-
-    
+  
 def render_admin_dashboard(df_all: pd.DataFrame):
+    def filter_df_by_quarter(rep_df, quarter):
+
+        if quarter == "All":
+            return rep_df
+
+        quarter_months = {
+            "Q1": [1, 2, 3],
+            "Q2": [4, 5, 6],
+            "Q3": [7, 8, 9],
+            "Q4": [10, 11, 12],
+        }
+
+        months = quarter_months.get(quarter, [])
+
+        rep_df = rep_df.copy()
+
+        rep_df["actualclosedate"] = pd.to_datetime(
+        rep_df["actualclosedate"],
+        errors="coerce"
+        )
+
+        return rep_df[
+            rep_df["actualclosedate"].dt.month.isin(months)
+        ]
 
     st.subheader(f"Admin Dashboard - CRD Summary ({CURRENT_YEAR})")
     st.caption("Click a CRD name to open the detailed commission view.")
+    quarter_filter = st.selectbox(
+    "Filter Payment & Clawback Summary by Quarter",
+    ["All", "Q1", "Q2", "Q3", "Q4"],
+    index=0
+    )
 
     rows_html = []
     for crd in CRD_REPS:
         rep_display = match_rep_name(df_all, crd)
         rep_df = build_rep_df(df_all, rep_display)
+
+        # ✅ FILTER BY QUARTER
+        rep_df = filter_df_by_quarter(
+                rep_df,
+                    quarter_filter
+            )
+
         summary = compute_summary(rep_df, crd)
 
 
@@ -1347,51 +1551,58 @@ def render_admin_dashboard(df_all: pd.DataFrame):
     )
     st.markdown(table_html, unsafe_allow_html=True)
 
-   
+    
     # ✅ CLAWBACK + PAYMENT SUMMARY TABLE
+
     summary_rows = []
 
     for rep in CRD_REPS:
-        
-        rep_df = build_rep_df(df_all, rep)
-        
-        summary = compute_summary(rep_df, rep)
 
-        if rep_df.empty:
-            total_eligible_commission = 0
-        else:
-            total_eligible_commission = (
-            summary.get("eligible_comm", 0)
-            + summary.get("multi_year_bonus_comm", 0)
-            + get_total_clawback(rep)
+    # ✅ Always map CRD name → actual CRM Sales Rep display name
+        rep_display = match_rep_name(df_all, rep)
+
+    # ✅ Build data using CRM display name (this was the missing piece)
+        rep_df = build_rep_df(df_all, rep_display)
+
+    # ✅ Summary uses the CRD name (so rate/quota config works)
+        # ✅ FILTER BY QUARTER
+        rep_df = filter_df_by_quarter(
+            rep_df,
+        quarter_filter
         )
 
+        summary = compute_summary(rep_df, rep)
 
-            multiyear_bonus = summary.get("multi_year_bonus_comm", 0)
-        
-            total_paid = get_total_paid(rep)
-            total_clawback = get_total_clawback(rep)
-        
-                                     
+        multiyear_bonus = float(summary.get("multi_year_bonus_comm", 0.0) or 0.0)
+
+    # ✅ Quarter-filtered totals
+        total_paid = get_total_paid_by_quarter(rep, quarter_filter)
+        total_clawback = get_total_clawback_by_quarter(rep, quarter_filter)
+
+    # ✅ What you want to show in Payment summary:
+    # Base eligible (Eligible Comm YTD) + Multi-year bonus + clawback adjustments
+        total_eligible_commission = (
+            float(summary.get("eligible_comm", 0.0) or 0.0)
+            + multiyear_bonus
+            + float(total_clawback or 0.0)
+        )
+
         summary_rows.append({
-
-            
             "CRD": rep,
             "Total Eligible Commission": total_eligible_commission,
-            "Total OTC": fmt_money(OTC_CONFIG.get(rep, 0.0)),
-            "Total Multi-Year Bonus": fmt_money(multiyear_bonus),
-            "Total Clawback": total_clawback,
-            "Total Commission Paid": total_paid
-
+            "Total OTC": float(OTC_CONFIG.get(rep, 0.0) or 0.0),
+            "Total Multi-Year Bonus": multiyear_bonus,
+            "Total Clawback": float(total_clawback or 0.0),
+            "Total Commission Paid": float(total_paid or 0.0),
         })
 
-
-
+        
     summary_df = pd.DataFrame(summary_rows)
-    # ✅ FORMAT ALL MONEY COLUMNS (ACCOUNTING FORMAT)
+        # ✅ FORMAT ALL MONEY COLUMNS (ACCOUNTING FORMAT)
     money_cols = [
         "Total Eligible Commission",
-        "TotalMulti-Year Bonus",
+        "Total OTC",
+        "Total Multi-Year Bonus",
         "Total Clawback",
         "Total Commission Paid",
         ]
