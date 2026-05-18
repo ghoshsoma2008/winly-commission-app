@@ -4,6 +4,7 @@ import msal
 import requests
 import os
 import json
+import sqlite3
 from datetime import datetime, date
 import math
 from urllib.parse import quote_plus
@@ -347,6 +348,7 @@ def lookup_staffing_markup(client_name: str, rates_df: pd.DataFrame):
 # =====================================================
 def derive_category(workload, client_name):
     txt = f"{workload} {client_name}".lower()
+    
     if "nintex" in txt:
         return "Product"
     elif "business apps" in txt:
@@ -358,11 +360,10 @@ def derive_category(workload, client_name):
     elif "staffing" in txt:
         return "Staffing 2 (10-19% markup)"
     elif "govern" in txt:
-        return "G365"
+        return "Govern 365"
 
     # ✅ DEFAULT FOR EVERYTHING ELSE
     return "Consulting"
-
 
 
 def match_rep_name(df: pd.DataFrame, target_name: str) -> str:
@@ -412,14 +413,22 @@ def parse_markup(x):
 
 
 def staffing_tier(markup_ratio):
-    if markup_ratio is None or (isinstance(markup_ratio, float) and pd.isna(markup_ratio)):
+
+    # ✅ SAFE CHECK (IMPORTANT)
+    if markup_ratio is None:
         return pd.NA
-    m = float(markup_ratio)
+
+    try:
+        m = float(markup_ratio)
+    except:
+        return pd.NA  # ✅ prevents crash
+
     if m >= 0.20:
         return "Staffing 1 (>=20% markup)"
-    if m >= 0.10:
+    elif m >= 0.10:
         return "Staffing 2 (10-19% markup)"
-    return "Staffing 3 (<10% markup)"
+    else:
+        return "Staffing 3 (<10% markup)"
 
 
 def compute_csp_years(start_date, end_date):
@@ -463,6 +472,7 @@ def build_rep_df(all_df: pd.DataFrame, rep_display_name: str) -> pd.DataFrame:
     )
 
     rep_df["Markup_num"] = rep_df["Markup"].apply(parse_markup)
+    rep_df["Markup_num"] = pd.to_numeric(rep_df["Markup_num"], errors="coerce")
 
     # Final category (staffing tiers override)
     rep_df["Final Revenue Category"] = rep_df["Derived Revenue Category"]
@@ -536,6 +546,7 @@ def compute_summary(rep_df: pd.DataFrame, rep_name: str):
 
     eligible_comm = base_eligible_comm
 
+
     paid_comm = eligible_comm * payout_factor
     remaining_comm = eligible_comm - paid_comm
 
@@ -607,35 +618,107 @@ if "selected_rep" not in st.session_state:
 # =====================================================
 # PERSISTENT COMMISSION PAYMENT LEDGER (ADMIN LOCK)
 # =====================================================
-LEDGER_PATH = os.path.join(os.getcwd(), 'commission_payments_ledger.json')
+# =====================================================
+# =====================================================
+# SQLITE DATABASE (PERSISTENT LOCKING FOR ADMINS)
+# =====================================================
 
-def _load_payment_ledger():
-    """Load append-only payment ledger from local JSON file."""
-    if os.path.exists(LEDGER_PATH):
-        try:
-            with open(LEDGER_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            return data if isinstance(data, dict) else {}
-        except Exception:
-            return {}
-    return {}
+DB_PATH = "commission_ledger.db"
 
-def _save_payment_ledger(ledger: dict):
-    try:
-        with open(LEDGER_PATH, 'w', encoding='utf-8') as f:
-            json.dump(ledger, f, indent=2)
-    except Exception:
-        pass
+def initialize_database():
+    """Create tables once if they don't exist."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep TEXT NOT NULL,
+                amount REAL NOT NULL,
+                paid_by TEXT,
+                ts TEXT NOT NULL
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS clawbacks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rep TEXT NOT NULL,
+                project TEXT NOT NULL,
+                amount REAL NOT NULL,
+                ts TEXT NOT NULL
+            )
+        """)
+        conn.commit()
 
-def _get_paid_total(ledger: dict, rep_name: str) -> float:
-    entries = ledger.get(rep_name, []) or []
-    total = 0.0
-    for e in entries:
-        try:
-            total += float(e.get('amount', 0.0) or 0.0)
-        except Exception:
-            pass
-    return float(total)
+# ✅ Call ONCE after function exists
+initialize_database()
+
+# =====================================================
+# PAYMENT FUNCTIONS
+# =====================================================
+
+def add_payment(rep_name: str, amount: float, paid_by: str):
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        if amount <= 0:
+            return
+        cur.execute(
+            "INSERT INTO payments (rep, amount, paid_by, ts) VALUES (?, ?, ?, ?)",
+            (rep_name, float(amount), paid_by, datetime.utcnow().isoformat(timespec="seconds") + "Z")
+        )
+        
+        conn.commit()
+
+def get_payment_history(rep_name: str):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT ts, amount, paid_by FROM payments WHERE rep=? ORDER BY id DESC",
+            (rep_name,)
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_total_paid(rep_name: str) -> float:
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE rep=?", (rep_name,))
+        return float(cur.fetchone()[0] or 0.0)
+
+def clear_payment_history(rep_name: str):
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM payments WHERE rep=?", (rep_name,))
+        conn.commit()
+
+# =====================================================
+# CLAWBACK FUNCTIONS
+# =====================================================
+
+def add_clawback(rep_name: str, project_name: str, clawback_amount: float):
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO clawbacks (rep, project, amount, ts) VALUES (?, ?, ?, ?)",
+            (rep_name, project_name, float(clawback_amount), datetime.utcnow().isoformat(timespec="seconds") + "Z")
+        )
+        conn.commit()
+
+def get_clawbacks(rep_name: str):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT ts, project, amount FROM clawbacks WHERE rep=? ORDER BY rowid DESC",
+            (rep_name,)
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+def get_total_clawback(rep_name: str) -> float:
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(SUM(amount), 0) FROM clawbacks WHERE rep=?", (rep_name,))
+        return float(cur.fetchone()[0] or 0.0)
 
 
 
@@ -708,51 +791,7 @@ def get_dynamic_explanation(summary):
         )
 
     
-# =====================================================
-# ✅ ADMIN DASHBOARD (WITH CLICKABLE LINK)
-# =====================================================
 
-def render_admin_dashboard(df_all: pd.DataFrame):
-
-    st.subheader(f"Admin Dashboard - CRD Summary ({CURRENT_YEAR})")
-    st.caption("Click a CRD name to open the detailed commission view.")
-
-    rows_html = []
-
-    for crd in CRD_REPS:
-
-        rep_display = match_rep_name(df_all, crd)
-        rep_df = build_rep_df(df_all, rep_display)
-        summary = compute_summary(rep_df, crd)
-
-        # ✅ ✅ THIS IS THE BLUE CLICKABLE LINK (FROM V3)
-        href = f"?crd={quote_plus(crd)}"
-
-        rows_html.append(
-            "<tr>"
-            f"<td><a class='crd-anchor' href='{href}'>{crd}</a></td>"
-            f"<td>{fmt_money(summary['quota'])}</td>"
-            f"<td>{fmt_money(summary['total_quota_credit'])}</td>"
-            f"<td>{fmt_money(summary['eligible_comm'])}</td>"
-            f"<td>{fmt_pct(summary['attainment'])}</td>"
-            f"<td>{summary['payout_status']}</td>"
-            "</tr>"
-        )
-
-    table_html = (
-        "<table class='dashboard-table'>"
-        "<thead><tr>"
-        "<th>CRD Name</th>"
-        "<th>Annual Quota Goal</th>"
-        "<th>Total Quota Credit</th>"
-        "<th>Eligible Comm YTD</th>"
-        "<th>YTD Attainment %</th>"
-        "<th>Payout Status</th>"
-        "</tr></thead>"
-        "<tbody>" + "".join(rows_html) + "</tbody></table>"
-    )
-
-    st.markdown(table_html, unsafe_allow_html=True)
 
 
 # =====================================================
@@ -773,16 +812,19 @@ def render_detail_view(df_all: pd.DataFrame):
     
      # ✅ Load ledger
     if "payment_ledger" not in st.session_state:
-        st.session_state["payment_ledger"] = _load_payment_ledger()
-
-    ledger = st.session_state["payment_ledger"]
+        st.session_state["payment_ledger"] = {}
 
     if "manual_paid" not in st.session_state:
         st.session_state["manual_paid"] = {}
 
     otc_value = OTC_CONFIG.get(selected_rep, 0.0)
 
-    manual_paid_value = _get_paid_total(ledger, selected_rep)
+    manual_paid_value = get_total_paid(selected_rep)
+    # =====================================================
+    # LOAD SAVED CLAWBACKS
+    # =====================================================
+
+    saved_clawback_total = get_total_clawback(selected_rep)
     st.session_state["manual_paid"][selected_rep] = float(manual_paid_value)
 
     st.subheader(f"{selected_rep} - Commission Summary ({CURRENT_YEAR})")
@@ -802,12 +844,7 @@ def render_detail_view(df_all: pd.DataFrame):
     summary = compute_summary(rep_df, selected_rep)
     rep_display = match_rep_name(df_all, selected_rep)
 
-    # ✅ THIS IS MISSING (ADD THIS)
-    rep_df = build_rep_df(df_all, rep_display)
-    total_clawback_adjustment = 0.0
-
     
-
 
     # =============================
     # CRD DETAIL UI BLOCK
@@ -818,6 +855,9 @@ def render_detail_view(df_all: pd.DataFrame):
     if role == "ADMIN":
 
         st.markdown("#### Commission Paid (Admin Only) — Lock to prevent double payment")
+        # ✅ Prevent infinite insert loop
+        if "payment_saved" not in st.session_state:
+            st.session_state["payment_saved"] = False
 
         new_payment = st.number_input(
             "Enter new payment amount (will be added cumulatively)",
@@ -826,91 +866,95 @@ def render_detail_view(df_all: pd.DataFrame):
             step=1000.0,
             key=f"new_paid_input_{selected_rep}",
         )
-
+        # ✅ Reset flag when user changes value
+        st.session_state["payment_saved"] = False
         st.caption(f"Total Paid (Locked): {fmt_money(manual_paid_value)}")
 
-    # ✅ PAYMENT HISTORY
-    st.markdown("### 📜 Payment History")
+        st.markdown("### 📜 Payment History")
 
-    rep_ledger = ledger.get(selected_rep, [])
-    history_rows = []
+        rep_ledger = get_payment_history(selected_rep)
+        history_rows = []
 
-    if rep_ledger:
+        if not rep_ledger:
 
-        for entry in rep_ledger:
-            ts = entry.get("ts", "")
-            amt = entry.get("amount", 0.0)
-            user = entry.get("by", "")
+            st.info("No payment history available yet")
 
-            history_rows.append(
-            f"<tr>"
-            f"<td>{ts}</td>"
-            f"<td>{fmt_money(amt)}</td>"
-            f"<td>{user}</td>"
-            f"</tr>"
-            )
+        else:
+
+            for entry in rep_ledger:
+
+                ts = entry.get("ts", "")
+                amt = entry.get("amount", 0.0)
+                user = entry.get("paid_by", "")
+
+                history_rows.append(
+                f"<tr>"
+                f"<td>{ts}</td>"
+                f"<td>{fmt_money(amt)}</td>"
+                f"<td>{user}</td>"
+                f"</tr>"
+                )
 
     history_html = (
-        "<table class='summary-table'>"
-        "<thead><tr>"
-        "<th>Date</th><th>Amount</th><th>By</th>"
-        "</tr></thead>"
-        "<tbody>" + "".join(history_rows) + "</tbody></table>"
-    )
-
+         "<table class='summary-table'>"
+         "<thead><tr><th>Date</th><th>Amount</th><th>By</th></tr></thead>"
+         "<tbody>" + "".join(history_rows) + "</tbody></table>"
+        )
     st.markdown(history_html, unsafe_allow_html=True)
 
-    if not rep_ledger:
-        st.info("No payment history available yet")
-
     # ✅ ✅ ALWAYS SHOW BUTTONS (IMPORTANT)
+    # Buttons
     col_pay_1, col_pay_2 = st.columns([1, 2])
-
     with col_pay_1:
         lock_clicked = st.button("Lock Payment", key=f"lock_pay_{selected_rep}")
-
     with col_pay_2:
         st.caption("Adds this payment to the ledger and locks it permanently.")
 
-    # ✅ CLEAR BUTTON (NOW ALWAYS VISIBLE)
     if st.button("Clear Payment Log", key=f"clear_pay_{selected_rep}"):
-
-        ledger[selected_rep] = []
-
-        _save_payment_ledger(ledger)
-
-        st.session_state["payment_ledger"] = ledger
-
+        clear_payment_history(selected_rep)
         st.success("Payment log cleared successfully ✅")
-
         st.rerun()
 
     if lock_clicked:
 
-            total_commission_actual_tmp = summary["eligible_comm"] + summary.get("multi_year_bonus_comm", 0.0)
-            remaining_before = float(total_commission_actual_tmp) - float(manual_paid_value)
+        if float(new_payment or 0) <= 0:
 
-            if float(new_payment) <= 0:
-                st.warning("Enter a payment amount greater than 0.")
+            st.warning("Enter a valid payment amount > 0")
 
-            elif float(new_payment) - remaining_before > 0.000001:
-                st.error(f"Payment exceeds remaining payable. Remaining: {fmt_money(remaining_before)}")
+        else:
+
+            total_commission_actual_tmp = (
+                summary["eligible_comm"]
+                + summary.get("multi_year_bonus_comm", 0.0)
+            )
+
+            remaining_before = (
+                float(total_commission_actual_tmp)
+                - float(manual_paid_value)
+            )
+
+            if float(new_payment) > remaining_before:
+
+                st.error(
+                    f"Payment exceeds remaining payable. Remaining: {fmt_money(remaining_before)}"
+                )
 
             else:
-                entry = {
-                    "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-                    "amount": float(new_payment),
-                    "by": signed_in_upn,
-                }
 
-                ledger.setdefault(selected_rep, []).append(entry)
-                _save_payment_ledger(ledger)
+                add_payment(
+                    selected_rep,
+                    float(new_payment),
+                    signed_in_upn
+                )
 
-                st.session_state["payment_ledger"] = ledger
-                st.success("Payment locked and added to total paid.")
+                st.success("Payment locked successfully ✅")
+
                 st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
+             
+ 
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
     # =====================================================
     # 🔁 REVERSALS
@@ -944,6 +988,8 @@ def render_detail_view(df_all: pd.DataFrame):
             filtered_rows = rep_df_all[
                 rep_df_all["Opportunity Id"].astype(str) == str(selected_oppty)
             ]
+            if filtered_rows.empty:
+                continue
 
             row_data = filtered_rows.iloc[0]
 
@@ -964,10 +1010,22 @@ def render_detail_view(df_all: pd.DataFrame):
 
             total_clawback_adjustment += clawback
 
-            st.metric("Delta", fmt_money(delta))
-            st.metric("Claw-back", fmt_money(clawback))
+            if st.button(f"Save Clawback {i+1}", key=f"save_cb_{selected_rep}_{i}"):
 
-            st.divider()
+                add_clawback(
+                    selected_rep,
+                     project_name,
+                        clawback
+                )
+
+                st.success("Clawback saved successfully ✅")
+                st.rerun()
+            
+
+                st.metric("Delta", fmt_money(delta))
+                st.metric("Claw-back", fmt_money(clawback))
+
+                st.divider()
 
     # =====================================================
     # ✅ SUMMARY TABLE (ORIGINAL UI RESTORED)
@@ -976,13 +1034,54 @@ def render_detail_view(df_all: pd.DataFrame):
 
     # ✅ Always calculate (for both admin & users)
 
-    total_commission_actual = (
-        summary["eligible_comm"]
+   # =====================================================
+# CLAWBACK-ADJUSTED COMMISSION CALCULATIONS
+# =====================================================
+
+# =====================================================
+# FINAL COMMISSION CALCULATIONS
+# =====================================================
+
+    base_eligible_commission = (
+     summary["eligible_comm"]
         + summary.get("multi_year_bonus_comm", 0.0)
+    )
+
+    # Saved clawbacks from DB
+    total_clawback_adjustment = saved_clawback_total
+
+    # Final eligible after clawback
+    total_commission_actual = (
+        base_eligible_commission
         + total_clawback_adjustment
     )
-    total_paid = manual_paid_value  # ✅ already from ledger
-    adjusted_remaining = total_commission_actual - total_paid
+
+        # Prevent negative values
+    total_commission_actual = max(
+    total_commission_actual,
+    0.0
+)
+
+    # Apply payout factor
+    adjusted_payable_commission = (
+        total_commission_actual
+        * summary.get("payout_factor", 0.0)
+    )
+
+    # Already paid
+    total_paid = manual_paid_value
+
+    # Remaining
+    adjusted_remaining = (
+        adjusted_payable_commission
+        - total_paid
+    )
+
+    # Prevent negative remaining
+    adjusted_remaining = max(
+    adjusted_remaining,
+    0.0
+    )
 
     screenshot_rows = [
 
@@ -1000,7 +1099,7 @@ def render_detail_view(df_all: pd.DataFrame):
         ("Multi-Year Bonus Commission (>=3yr CSP)", fmt_money(summary.get("multi_year_bonus_comm", 0.0))),
         ("Clawback Adjustment", fmt_money(total_clawback_adjustment)),
         ("Total Eligible Comm YTD", fmt_money(total_commission_actual)),
-        ("Total Comm Payable YTD", fmt_money(summary["paid_comm"])),
+        ("Total Comm Payable YTD", fmt_money(adjusted_payable_commission)),
         ("Commission Paid (Manual Entry)", fmt_money(manual_paid_value)),
         ("Total Commission Remaining YTD", fmt_money(adjusted_remaining)),
     ]
@@ -1038,34 +1137,213 @@ def render_detail_view(df_all: pd.DataFrame):
             unsafe_allow_html=True,
         )
 
-    st.subheader("Detailed Deals")
-    if rep_df.empty:    
-        st.info(f"No deals found for this CRD in {CURRENT_YEAR}.")
+    
 
 
-    # =====================================================
+ # =====================================================
     # ✅ DETAILED TABLE (CLEAN)
     # =====================================================
 
+    st.subheader("Detailed Deals")
+
+    if rep_df.empty:
+        st.info(f"No deals found for this CRD in {CURRENT_YEAR}.")
+        return
+
+    # =====================================================
+    # RATE
+    # =====================================================
+
+    rate = float(
+        rep_config.get(selected_rep, {}).get("rate", 0.0) or 0.0
+    )
+
+    rep_df = rep_df.copy()
+
+    # =====================================================
+    # Commission Calculations
+    # =====================================================
+
+    rep_df["Potential Commission_num"] = (
+        rep_df["Quota Credit"] * rate
+        if rate > 0
+        else 0.0
+    )
+
+    if "CSP Bonus (Year1 Only)" in rep_df.columns:
+
+        rep_df["Multi-Year Bonus Commission_num"] = (
+            pd.to_numeric(
+                rep_df["CSP Bonus (Year1 Only)"],
+                errors="coerce"
+            ).fillna(0.0)
+        )
+
+    else:
+
+        rep_df["Multi-Year Bonus Commission_num"] = 0.0
+
+    # ✅ ALWAYS calculate grand total
+    rep_df["Grand Total Potential Commission_num"] = (
+        rep_df["Potential Commission_num"]
+        + rep_df["Multi-Year Bonus Commission_num"]
+    )
+
+    # =====================================================
+    # DISPLAY DATAFRAME
+    # =====================================================
+
     display_df = rep_df.copy()
-    display_df = display_df.sort_values(by="actualclosedate", ascending=False)
-    display_df["Close Date"] = display_df["actualclosedate"].dt.strftime("%d-%b-%Y")
-    display_df["Deal Value"] = display_df["Deal Value"].map(fmt_money)
-    display_df["Quota Credit"] = display_df["Quota Credit"].map(fmt_money)
+
+    # Close Date
+    if "actualclosedate" in display_df.columns:
+
+        display_df["Close Date"] = (
+            pd.to_datetime(
+                display_df["actualclosedate"],
+                errors="coerce"
+            ).dt.strftime("%d-%b-%Y")
+        )
+
+    # TCV
+    if "TCV" in display_df.columns:
+
+        display_df["TCV"] = display_df["TCV"].map(fmt_money)
+
+    # Markup %
+    display_df["Markup %"] = (
+        display_df.get(
+            "Markup",
+            pd.Series([""] * len(display_df))
+        ).apply(
+            lambda x:
+                f"{x*100:.2f}%"
+                if pd.notna(x)
+                else ""
+        )
+    )
+
+    # Currency formatting
+    display_df["Deal Value"] = (
+        display_df["Deal Value"].map(fmt_money)
+    )
+
+    display_df["Quota Credit"] = (
+        display_df["Quota Credit"].map(fmt_money)
+    )
+
+    # =====================================================
+    # Commission Formatting
+    # =====================================================
+
+    def fmt_commission(v):
+
+        if rate == 0.0:
+            return "Not Eligible"
+
+        return fmt_money(v)
+
+    display_df["Potential Commission"] = (
+        display_df["Potential Commission_num"]
+        .map(fmt_commission)
+    )
+
+    display_df["Multi-Year Bonus Commission"] = (
+        display_df["Multi-Year Bonus Commission_num"]
+        .map(fmt_commission)
+    )
+
+    display_df["Grand Total Potential Commission"] = (
+        display_df["Grand Total Potential Commission_num"]
+        .map(fmt_commission)
+    )
+
+    # =====================================================
+    # Final Columns
+    # =====================================================
 
     detail_cols = [
         "Close Date",
         "Client Name",
         "Workload",
         "Final Revenue Category",
+        "Markup %",
         "Deal Value",
+        "TCV",
         "Quota Credit",
+        "Potential Commission",
+        "Multi-Year Bonus Commission",
+        "Grand Total Potential Commission",
     ]
 
-    detail_cols = [c for c in detail_cols if c in display_df.columns]
-    
-    st.dataframe(display_df[detail_cols], use_container_width=True)
+    # Keep existing only
+    detail_cols = [
+        c for c in detail_cols
+        if c in display_df.columns
+    ]
+    if "actualclosedate" in display_df.columns:
 
+        display_df = display_df.sort_values(
+            by="actualclosedate",
+            ascending=False
+        )
+    # =====================================================
+    # TABLE
+    # =====================================================
+
+    st.dataframe(
+        display_df[detail_cols],
+        use_container_width=True
+    )
+
+    # =====================================================
+    # CSV DOWNLOAD
+    # =====================================================
+
+    csv_data = display_df[detail_cols].to_csv(index=False)
+
+    st.download_button(
+        label="Download Detailed Deals (CSV)",
+        data=csv_data,
+        file_name=f"{selected_rep}_Detailed_Deals_{CURRENT_YEAR}.csv",
+        mime="text/csv",
+    )
+
+     
+
+    
+def render_admin_dashboard(df_all: pd.DataFrame):
+    st.subheader(f"Admin Dashboard - CRD Summary ({CURRENT_YEAR})")
+    st.caption("Click a CRD name to open the detailed commission view.")
+
+    rows_html = []
+    for crd in CRD_REPS:
+        rep_display = match_rep_name(df_all, crd)
+        rep_df = build_rep_df(df_all, rep_display)
+        summary = compute_summary(rep_df, crd)
+
+
+        href = f"?crd={quote_plus(crd)}"
+        rows_html.append(
+            "<tr>"
+            f"<td><a class='crd-anchor' href='{href}'>{crd}</a></td>"
+            f"<td>{fmt_money(summary['quota'])}</td>"
+            f"<td>{fmt_money(summary['total_quota_credit'])}</td>"
+            f"<td>{fmt_money(summary['eligible_comm'])}</td>"
+            f"<td>{fmt_pct(summary['attainment'])}</td>"
+            f"<td>{summary['payout_status']}</td>"
+            "</tr>"
+        )
+
+    table_html = (
+        "<table class='dashboard-table'>"
+        "<thead><tr>"
+        "<th>CRD Name</th><th>Annual Quota Goal</th><th>Total Quota Credit</th>"
+        "<th>Eligible Comm YTD</th><th>YTD Attainment %</th><th>Payout Status</th>"
+        "</tr></thead>"
+        "<tbody>" + "".join(rows_html) + "</tbody></table>"
+    )
+    st.markdown(table_html, unsafe_allow_html=True)
 
 # =====================================================
 # ROUTER
