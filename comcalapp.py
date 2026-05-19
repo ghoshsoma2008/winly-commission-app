@@ -83,42 +83,33 @@ CSP_TCV_COL = "nw_totalcontractvaluenw"
 CSP_START_COL = "new_startdate"
 CSP_END_COL = "new_enddate"
 
+
+
+
+
+
+
 # =====================================================
-# MSAL PERSISTENT CACHE
+# MSAL SESSION CACHE (PER USER)
 # =====================================================
-CACHE_PATH = os.path.join(os.getcwd(), ".msal_cache.json")
-
-
-def _load_cache():
-    cache = msal.SerializableTokenCache()
-    if os.path.exists(CACHE_PATH):
-        try:
-            with open(CACHE_PATH, "r", encoding="utf-8") as f:
-                cache.deserialize(f.read())
-        except Exception:
-            pass
-    return cache
-
-
-def _save_cache(cache):
-    if cache.has_state_changed:
-        try:
-            with open(CACHE_PATH, "w", encoding="utf-8") as f:
-                f.write(cache.serialize())
-        except Exception:
-            pass
-
 
 def get_msal_app():
+
     if "msal_cache" not in st.session_state:
-        st.session_state["msal_cache"] = _load_cache()
+        st.session_state["msal_cache"] = msal.SerializableTokenCache()
+
     if "msal_app" not in st.session_state:
+
         st.session_state["msal_app"] = msal.PublicClientApplication(
             CLIENT_ID,
             authority=AUTHORITY,
             token_cache=st.session_state["msal_cache"],
         )
-    return st.session_state["msal_app"], st.session_state["msal_cache"]
+
+    return (
+        st.session_state["msal_app"],
+        st.session_state["msal_cache"]
+    )
 
 
 def acquire_token_device_flow(app, cache, scopes):
@@ -138,7 +129,7 @@ def acquire_token_device_flow(app, cache, scopes):
         st.error(f"Authentication failed: {err}\n\n{desc}")
         st.stop()
 
-    _save_cache(cache)
+   
     return result["access_token"]
 
 
@@ -147,7 +138,6 @@ def get_token_for_scopes(app, cache, scopes):
     if accounts:
         silent = app.acquire_token_silent(scopes, account=accounts[0])
         if silent and "access_token" in silent:
-            _save_cache(cache)
             return silent["access_token"]
     return acquire_token_device_flow(app, cache, scopes)
 
@@ -898,6 +888,9 @@ app, cache = get_msal_app()
 graph_token = get_token_for_scopes(app, cache, GRAPH_SCOPES)
 signed_in_upn = get_logged_in_user_upn(graph_token)
 st.caption(f"Signed in as: {signed_in_upn}")
+if st.button("Logout"):
+    st.session_state.clear()
+    st.rerun()
 
 if signed_in_upn in ROLE_CONFIG["admin"]:
     role = "ADMIN"
