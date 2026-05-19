@@ -600,11 +600,21 @@ def clear_query_params():
 # =====================================================
 # SESSION STATE
 # =====================================================
+
 if "view" not in st.session_state:
     st.session_state["view"] = "dashboard"
+
 if "selected_rep" not in st.session_state:
     st.session_state["selected_rep"] = None
 
+if "msal_cache" not in st.session_state:
+    st.session_state["msal_cache"] = msal.SerializableTokenCache()
+
+if "payment_ledger" not in st.session_state:
+    st.session_state["payment_ledger"] = {}
+
+if "manual_paid" not in st.session_state:
+    st.session_state["manual_paid"] = {}
 # =====================================================
 # PERSISTENT COMMISSION PAYMENT LEDGER (ADMIN LOCK)
 # =====================================================
@@ -1685,10 +1695,16 @@ def render_admin_dashboard(df_all: pd.DataFrame):
 # =====================================================
 # ROUTER
 # =====================================================
+
 if role == "ADMIN":
-    if st.session_state["view"] == "dashboard":
+
+    current_view = st.session_state.get("view", "dashboard")
+
+    if current_view == "dashboard":
         render_admin_dashboard(df)
+
     else:
         render_detail_view(df)
+
 else:
     render_detail_view(df)
