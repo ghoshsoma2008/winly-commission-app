@@ -100,67 +100,147 @@ def inject_css():
         .stApp { background:#F4F8FE; }
         .block-container { padding-top:1.75rem; padding-left:2.2rem; padding-right:2.2rem; max-width:1600px; }
 
-        /* ================= SIDEBAR ================= */
-        section[data-testid="stSidebar"] {
-            background:linear-gradient(180deg,#07306B 0%,#061F49 100%);
-            border-right:1px solid #0A3473;
-        }
-        section[data-testid="stSidebar"] > div { padding:1.25rem 1rem 1rem 1rem; }
-        section[data-testid="stSidebar"] * { color:white; }
-        section[data-testid="stSidebar"] .stMarkdown { margin-bottom:0 !important; }
+       /* ================= SIDEBAR ================= */
+section[data-testid="stSidebar"] {
+    background:linear-gradient(180deg,#07306B 0%,#061F49 100%);
+    border-right:1px solid #0A3473;
 
-        .sidebar-logo { display:flex; align-items:center; gap:14px; margin:0 0 24px 0; }
-        .logo-icon { width:50px; height:50px; border-radius:11px; background:linear-gradient(135deg,#0B57D0,#0C6BDB); display:flex; align-items:center; justify-content:center; box-shadow:0 8px 20px rgba(0,0,0,.25); }
-        .logo-bars { display:flex; align-items:end; gap:5px; height:27px; }
-        .logo-bars span { display:block; width:7px; background:#ffffff; border-radius:2px; }
-        .logo-bars span:nth-child(1){ height:16px; opacity:.88; }
-        .logo-bars span:nth-child(2){ height:25px; }
-        .logo-bars span:nth-child(3){ height:21px; opacity:.92; }
-        .logo-text { font-size:21px; line-height:1.24; font-weight:900; letter-spacing:-.4px; }
+    /* ✅ slimmer sidebar */
+    width:260px !important;
+    min-width:260px !important;
+    max-width:260px !important;
+}
 
-        .sidebar-section-label { display:none !important; }
+section[data-testid="stSidebar"] > div {
+    padding:1.15rem 0.75rem 1rem 0.75rem;
+}
 
-        section[data-testid="stSidebar"] .stButton > button {
-            background:rgba(255,255,255,.08) !important;
-            border:1px solid rgba(255,255,255,.16) !important;
-            color:white !important;
-            border-radius:10px !important;
-            min-height:54px !important;
-            font-weight:900 !important;
-            font-size:18px !important;
-            text-align:left !important;
-            justify-content:flex-start !important;
-            padding-left:22px !important;
-            box-shadow:none !important;
-        }
-        section[data-testid="stSidebar"] .stButton > button:hover,
-        section[data-testid="stSidebar"] .stButton > button:focus {
-            background:linear-gradient(90deg,#0B57D0,#075AD8) !important;
-            border-color:#2D7BFF !important;
-            color:white !important;
-        }
-        section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
-            background:#FFFFFF !important;
-            border-radius:10px !important;
-            border:1px solid rgba(255,255,255,.2) !important;
-            min-height:46px !important;
-        }
-        section[data-testid="stSidebar"] div[data-baseweb="select"] span,
-        section[data-testid="stSidebar"] div[data-baseweb="select"] svg { color:#061A3A !important; fill:#061A3A !important; }
-        section[data-testid="stSidebar"] label { display:none !important; }
+section[data-testid="stSidebar"] * { color:white; }
+section[data-testid="stSidebar"] .stMarkdown { margin-bottom:0 !important; }
 
-        .signed-box {
-            margin-top:110px;
-            padding:15px 16px;
-            border-radius:12px;
-            border:1px solid rgba(255,255,255,.25);
-            background:rgba(255,255,255,.08);
-            box-shadow:inset 0 1px rgba(255,255,255,.12);
-        }
-        .signed-title { font-weight:900; font-size:14px; margin-bottom:8px; }
-        .signed-email { font-size:13px; word-break:break-word; font-weight:700; }
-        .signed-role { font-size:12px; margin-top:9px; opacity:.85; }
+.sidebar-logo {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:0 0 22px 0;
+}
 
+.logo-icon {
+    width:44px;
+    height:44px;
+    border-radius:10px;
+    background:linear-gradient(135deg,#0B57D0,#0C6BDB);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 8px 20px rgba(0,0,0,.25);
+}
+
+.logo-bars {
+    display:flex;
+    align-items:end;
+    gap:4px;
+    height:24px;
+}
+
+.logo-bars span {
+    display:block;
+    width:6px;
+    background:#ffffff;
+    border-radius:2px;
+}
+
+.logo-bars span:nth-child(1){ height:15px; opacity:.88; }
+.logo-bars span:nth-child(2){ height:23px; }
+.logo-bars span:nth-child(3){ height:19px; opacity:.92; }
+
+.logo-text {
+    font-size:18px;
+    line-height:1.22;
+    font-weight:900;
+    letter-spacing:-.3px;
+}
+
+.sidebar-section-label { display:none !important; }
+
+section[data-testid="stSidebar"] .stButton > button {
+    width:100% !important;
+    background:rgba(255,255,255,.08) !important;
+    border:1px solid rgba(255,255,255,.16) !important;
+    color:white !important;
+    border-radius:10px !important;
+
+    /* ✅ smaller height so buttons fit nicely */
+    min-height:48px !important;
+
+    font-weight:900 !important;
+    font-size:16px !important;
+
+    text-align:left !important;
+    justify-content:flex-start !important;
+
+    padding-left:18px !important;
+    padding-right:10px !important;
+
+    box-shadow:none !important;
+    margin-bottom:8px !important;
+}
+
+section[data-testid="stSidebar"] .stButton > button p {
+    font-size:16px !important;
+    font-weight:900 !important;
+    color:white !important;
+    white-space:nowrap !important;
+}
+
+section[data-testid="stSidebar"] .stButton > button:hover,
+section[data-testid="stSidebar"] .stButton > button:focus {
+    background:linear-gradient(90deg,#0B57D0,#075AD8) !important;
+    border-color:#2D7BFF !important;
+    color:white !important;
+}
+
+section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+    background:#FFFFFF !important;
+    border-radius:10px !important;
+    border:1px solid rgba(255,255,255,.2) !important;
+    min-height:42px !important;
+}
+
+section[data-testid="stSidebar"] div[data-baseweb="select"] span,
+section[data-testid="stSidebar"] div[data-baseweb="select"] svg {
+    color:#061A3A !important;
+    fill:#061A3A !important;
+}
+
+section[data-testid="stSidebar"] label { display:none !important; }
+
+.signed-box {
+    margin-top:70px;
+    padding:13px 14px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.08);
+    box-shadow:inset 0 1px rgba(255,255,255,.12);
+}
+
+.signed-title {
+    font-weight:900;
+    font-size:13px;
+    margin-bottom:7px;
+}
+
+.signed-email {
+    font-size:12px;
+    word-break:break-word;
+    font-weight:700;
+}
+
+.signed-role {
+    font-size:11px;
+    margin-top:8px;
+    opacity:.85;
+}
         /* ================= PAGE ================= */
         .page-title { font-size:34px; color:#061A3A; margin:0; font-weight:900; letter-spacing:-.7px; }
         .page-subtitle { color:#061A3A; font-size:16px; margin-top:10px; }
@@ -226,7 +306,7 @@ def inject_css():
         .kpi-blue { background:#DCEBFF; color:#0B65D8; }
         .kpi-gold { background:#FFF1C8; color:#D88900; }
         .kpi-red { background:#FFE1E4; color:#C8303D; }
-        .kpi-title { color:#061A3A; font-size:13px; font-weight:800; line-height:1.35; }
+        .kpi-title { color:#061A3A; font-size:12px; font-weight:800; line-height:1.25; white-space:nowrap;}
         .kpi-value { color:#020B22; font-size:22px; font-weight:900; margin-top:14px; }
         .kpi-sub { color:#061A3A; font-size:12px; margin-top:16px; text-align:center; }
 
