@@ -867,18 +867,24 @@ def render_kpi_card(title, value, subtitle, icon, icon_class):
         """,
         unsafe_allow_html=True,
     )
-
-
 def render_page_header(title, subtitle, show_back=False):
     left, right = st.columns([6.8, 1.25])
+
     with left:
         st.markdown(
-            f'<h1 class="page-title">{title}</h1><div class="page-subtitle">{subtitle}</div>',
+            f"""
+            <div style="height:76px; display:flex; align-items:center;">
+                <h1 class="page-title" style="margin:0;">{title}</h1>
+            </div>
+            <div class="page-subtitle">{subtitle}</div>
+            """,
             unsafe_allow_html=True,
         )
+
     with right:
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+
         if show_back:
-            
             if st.button("← Back to Dashboard", use_container_width=True, key=f"back_btn_{title}"):
                 set_view("dashboard", None)
         else:
@@ -887,10 +893,12 @@ def render_page_header(title, subtitle, show_back=False):
                 data="Commission Calculator 2026 Summary\n",
                 file_name="commission_summary.csv",
                 mime="text/csv",
-                use_container_width=False,
+                use_container_width=True,
                 key=f"export_btn_{title}_{st.session_state.get('view','dashboard')}"
             )
+
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
 
 # =====================================================
 # DASHBOARDS
