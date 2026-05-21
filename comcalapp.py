@@ -933,9 +933,7 @@ def render_sidebar(signed_in_upn, role):
         if st.button("📋  Clawbacks", use_container_width=True, key="nav_clawbacks"):
             set_view("clawbacks", st.session_state.get("selected_rep"))
         if st.button("📊  Reports", use_container_width=True, key="nav_reports"):
-            st.session_state["view"] = "reports"
-            st.rerun()
-            set_view("reports", st.session_state.get("selected_rep"))
+            set_view("reports", None)
         if st.button("⚙️  Settings", use_container_width=True, key="nav_settings"):
             set_view("settings", st.session_state.get("selected_rep"))
 
@@ -1362,7 +1360,7 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
         ("Payout Status", summary["payout_status"]),
         ("Eligible Comm YTD", fmt_money(summary["base_eligible_comm"])),
         ("Multi-Year Bonus(>=3yr CSP)", fmt_money(summary["multi_year_bonus_comm"])),
-        ("Clawback Adjustment", f"-{fmt_money(saved_clawback)}"),
+        ("Clawback Adjustment", f"(${abs(saved_clawback):,.2f})"),
         ("Final Eligible Comm YTD", fmt_money(final_eligible_comm)),
         ("Total Comm Payable YTD", fmt_money(payable_after_clawback)),
         ("Paid Amount (Manual)", fmt_money(get_total_paid(selected_rep))),
@@ -1423,6 +1421,12 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
 def render_records_page(title, records):
     render_page_header(title, "Persistent ledger records visible to all admins.", show_back=True)
     df = pd.DataFrame(records)
+    if not df.empty and "amount" in df.columns:
+        df["amount"] = df["amount"].apply(
+            lambda x: f"(${abs(float(x)):,.2f})"
+            if float(x) != 0
+            else "$0.00"
+        )
     if df.empty:
         st.info("No records available yet.")
     else:
@@ -1624,8 +1628,24 @@ def main():
     elif st.session_state["view"] == "reports":
         render_reports_page(df)
 
-    else:
-        render_detail_view(df, st.session_state.get("selected_rep"), role, signed_in_upn, dataverse_token)
+    elif st.session_state["view"] == "payments":
+        render_records_page("Payments", get_payment_history())
+
+    elif st.session_state["view"] == "clawbacks":
+        render_records_page("Clawbacks", get_clawbacks())
+
+    elif st.session_state["view"] == "settings":
+        render_page_header("Settings", "Application configuration summary.", show_back=True)
+        st.info("Settings page is ready.")
+
+    elif st.session_state["view"] == "detail":
+        render_detail_view(
+            df,
+            st.session_state.get("selected_rep"),
+            role,
+            signed_in_upn,
+            dataverse_token
+        )
 
 
 if __name__ == "__main__":
