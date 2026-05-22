@@ -1600,12 +1600,12 @@ def render_reports_page(df_all):
         {"Metric": "Total Quota Credit", "Amount": fmt_money(summary["total_quota_credit"])},
         {"Metric": "Eligible Commission", "Amount": fmt_money(summary["base_eligible_comm"])},
         {"Metric": "Multi-Year Bonus", "Amount": fmt_money(summary["multi_year_bonus_comm"])},
+         {"Metric": "Clawback Adjustment", "Amount": f"-{fmt_money(abs(get_total_clawback(report_rep)))}"},
         {"Metric": "Final Eligible Commission", "Amount": fmt_money(
              summary["base_eligible_comm"]
             + summary["multi_year_bonus_comm"]
             - abs(get_total_clawback(report_rep))
         )},
-        {"Metric": "Clawback Adjustment", "Amount": f"-{fmt_money(abs(get_total_clawback(report_rep)))}"},
         {"Metric": "Commission Paid", "Amount": fmt_money(get_total_paid(report_rep))},
         {"Metric": "YTD Attainment %", "Amount": fmt_pct(summary["attainment"])},
         {"Metric": "Payout Status", "Amount": summary["payout_status"]},
