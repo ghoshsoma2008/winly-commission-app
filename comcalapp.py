@@ -370,7 +370,21 @@ def fmt_money(x):
         return f"${float(x):,.2f}"
     except Exception:
         return "$0.00"
-
+def fmt_accounting_local(amount, currency):
+    try:
+        symbols = {
+            "USD": "$",
+            "INR": "₹",
+            "GBP": "£",
+            "EUR": "€",
+            "CAD": "C$",
+            "AUD": "A$",
+            "SGD": "S$",
+        }
+        symbol = symbols.get(currency, currency + " ")
+        return f"{symbol}{float(amount):,.2f}"
+    except Exception:
+        return f"{currency} 0.00"
 
 def fmt_pct(x):
     try:
@@ -518,6 +532,8 @@ def ensure_database():
             cur.execute("ALTER TABLE payments ADD COLUMN paid_by TEXT")
         if "ts" not in pay_cols:
             cur.execute("ALTER TABLE payments ADD COLUMN ts TEXT")
+        if "quarter" not in pay_cols:
+            cur.execute("ALTER TABLE payments ADD COLUMN quarter TEXT")
         pay_cols = [r[1] for r in cur.execute("PRAGMA table_info(payments)").fetchall()]
         if "rep_name" in pay_cols:
             cur.execute("UPDATE payments SET rep = COALESCE(rep, rep_name)")
@@ -545,11 +561,21 @@ def ensure_database():
         conn.commit()
 
 
-def add_payment(rep, amount, paid_by):
+def add_payment(rep, amount, paid_by, quarter):
+
     with db_connect() as conn:
         conn.execute(
-            "INSERT INTO payments(rep, amount, paid_by, ts) VALUES (?, ?, ?, ?)",
-            (rep, float(amount), paid_by, datetime.utcnow().isoformat(timespec="seconds") + "Z"),
+            """
+            INSERT INTO payments(rep, amount, paid_by, quarter, ts)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                rep,
+                float(amount),
+                paid_by,
+                quarter,
+                datetime.utcnow().isoformat(timespec="seconds") + "Z"
+            ),
         )
         conn.commit()
 
@@ -623,12 +649,26 @@ def _where_rep_quarter(rep=None, quarter="All"):
 
 
 def get_total_paid(rep=None, quarter="All"):
+
     with db_connect() as conn:
-        where, params = _where_rep_quarter(rep, quarter)
+        params = []
+        where = []
+
         sql = "SELECT COALESCE(SUM(amount),0) FROM payments"
+
+        if rep:
+            where.append("rep=?")
+            params.append(rep)
+
+        if quarter != "All":
+            where.append("COALESCE(quarter,'')=?")
+            params.append(quarter)
+
         if where:
             sql += " WHERE " + " AND ".join(where)
+
         row = conn.execute(sql, tuple(params)).fetchone()
+
         return float(row[0] or 0.0)
 
 
@@ -1222,14 +1262,57 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
         st.subheader("Admin Actions")
         colp1, colp2, colp3 = st.columns([1.1, 1.1, 1.4])
         with colp1:
-            new_payment = st.number_input("New Payment Amount", min_value=0.0, step=1000.0, key=f"payment_{selected_rep}")
+            st.markdown("#### 💵 Payment Entry")
+
+            usd_payment_amount = st.number_input(
+                "USD Payment Amount",
+                min_value=0.0,
+                step=1000.0,
+                key=f"payment_{selected_rep}"
+            )
+
+            payment_currency = st.selectbox(
+                "Payment Currency",
+                ["USD", "INR", "GBP", "EUR", "CAD", "AUD", "SGD"],
+                index=0,
+                key=f"payment_currency_{selected_rep}"
+            )
+
+            fx_rate = st.number_input(
+                f"FX Rate: 1 USD = ? {payment_currency}",
+                min_value=0.0,
+                value=1.0 if payment_currency == "USD" else 83.00,
+                step=0.01,
+                key=f"fx_rate_{selected_rep}"
+            )
+
+            local_payment_amount = usd_payment_amount * fx_rate
+
+            st.info(
+                f"Local Payment Amount: {fmt_accounting_local(local_payment_amount, payment_currency)}"
+            )
+
             if st.button("Lock Payment", key=f"lock_payment_{selected_rep}"):
-                if new_payment > 0:
-                    add_payment(selected_rep, new_payment, signed_in_upn)
-                    st.success("Payment saved successfully.")
+
+                if usd_payment_amount > 0:
+
+                    
+                    add_payment(
+                        selected_rep,
+                        usd_payment_amount,
+                        signed_in_upn,
+                        quarter
+                )
+
+                    st.success(
+                        f"Payment saved successfully. USD: {fmt_money(usd_payment_amount)} | "
+                        f"{payment_currency}: {fmt_accounting_local(local_payment_amount, payment_currency)}"
+                    )
+
                     st.rerun()
+
                 else:
-                    st.warning("Enter a payment amount greater than 0.")
+                    st.warning("Enter a USD payment amount greater than 0.")
 
     if role == "ADMIN":
         if st.button("↩️ Undo Last Payment", key=f"undo_pay_{selected_rep}"):
