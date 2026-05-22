@@ -1505,11 +1505,27 @@ def render_records_page(title, records):
     render_page_header(title, "Persistent ledger records visible to all admins.", show_back=True)
     df = pd.DataFrame(records)
     if not df.empty and "amount" in df.columns:
-        df["amount"] = df["amount"].apply(
-            lambda x: f"(${abs(float(x)):,.2f})"
+
+        if title.lower() == "clawbacks":
+            df["amount"] = df["amount"].apply(
+                lambda x: f"(${abs(float(x)):,.2f})"
+                if float(x) != 0
+                else "$0.00"
+            )
+
+        else:
+            df["amount"] = df["amount"].apply(
+                lambda x: f"${float(x):,.2f}"
             if float(x) != 0
             else "$0.00"
         )
+
+    else:
+            df["amount"] = df["amount"].apply(
+                lambda x: f"${float(x):,.2f}"
+                if float(x) != 0
+                else "$0.00"
+            )
     if df.empty:
         st.info("No records available yet.")
     else:
@@ -1600,7 +1616,7 @@ def render_reports_page(df_all):
         {"Metric": "Total Quota Credit", "Amount": fmt_money(summary["total_quota_credit"])},
         {"Metric": "Eligible Commission", "Amount": fmt_money(summary["base_eligible_comm"])},
         {"Metric": "Multi-Year Bonus", "Amount": fmt_money(summary["multi_year_bonus_comm"])},
-         {"Metric": "Clawback Adjustment", "Amount": f"-{fmt_money(abs(get_total_clawback(report_rep)))}"},
+        {"Metric": "Clawback Adjustment", "Amount": f"-{fmt_money(abs(get_total_clawback(report_rep)))}"},
         {"Metric": "Final Eligible Commission", "Amount": fmt_money(
              summary["base_eligible_comm"]
             + summary["multi_year_bonus_comm"]
