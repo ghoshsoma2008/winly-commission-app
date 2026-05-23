@@ -1504,28 +1504,33 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
 def render_records_page(title, records):
     render_page_header(title, "Persistent ledger records visible to all admins.", show_back=True)
     df = pd.DataFrame(records)
-    if not df.empty and "amount" in df.columns:
+    if not df.empty:
 
-        if title.lower() == "clawbacks":
-            df["amount"] = df["amount"].apply(
-                lambda x: f"(${abs(float(x)):,.2f})"
-                if float(x) != 0
-                else "$0.00"
-            )
+        amount_col = None
 
-        else:
-            df["amount"] = df["amount"].apply(
-                lambda x: f"${float(x):,.2f}"
-            if float(x) != 0
-            else "$0.00"
-        )
+        for col in df.columns:
+            if col.lower() == "amount":
+                amount_col = col
+                break
 
-    else:
-            df["amount"] = df["amount"].apply(
-                lambda x: f"${float(x):,.2f}"
-                if float(x) != 0
-                else "$0.00"
-            )
+        if amount_col:
+
+            if title.lower() == "clawbacks":
+
+                df[amount_col] = df[amount_col].apply(
+                    lambda x: f"(${abs(float(x)):,.2f})"
+                    if pd.notna(x)
+                    else "$0.00"
+                )
+
+            else:
+
+                df[amount_col] = df[amount_col].apply(
+                    lambda x: f"${float(x):,.2f}"
+                    if pd.notna(x)
+                    else "$0.00"
+            
+                )
     if df.empty:
         st.info("No records available yet.")
     else:
