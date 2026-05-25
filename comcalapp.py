@@ -1257,6 +1257,9 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
     if role == "ADMIN":
         st.subheader("Admin Actions")
         colp1, colp2, colp3 = st.columns([1.1, 1.1, 1.4])
+        
+        
+        
         with colp1:
             st.markdown("#### 💵 Payment Entry")
 
@@ -1310,19 +1313,19 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
                 else:
                     st.warning("Enter a USD payment amount greater than 0.")
 
-    if role == "ADMIN":
-        if st.button("↩️ Undo Last Payment", key=f"undo_pay_{selected_rep}"):
-            delete_latest_payment(selected_rep)
-            st.success("Last payment removed successfully.")
-            st.rerun()
+        if role == "ADMIN":
+            if st.button("↩️ Undo Last Payment", key=f"undo_pay_{selected_rep}"):
+                delete_latest_payment(selected_rep)
+                st.success("Last payment removed successfully.")
+                st.rerun()
     
-    with colp2:
+        with colp2:
         
 
-        clawback_projects = get_crm_projects_for_clawback(
-            dataverse_token,
-            selected_rep
-        )
+            clawback_projects = get_crm_projects_for_clawback(
+                dataverse_token,
+                selected_rep
+            )
 
         project_options = ["-- Select Project --"] + list(clawback_projects.keys())
 
@@ -1389,38 +1392,38 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
                 st.info("Please select a clawback project.")
 
   
-    with colp3:
+        with colp3:
             st.write("**Saved Totals**")
             st.write(f"Total Paid: {fmt_money(get_total_paid(selected_rep, quarter))}")
             st.write(f"Total Clawback: {fmt_money(get_total_clawback(selected_rep, quarter))}")
 
-    if role == "ADMIN":
-        if st.button("🗑️ Clear Test Clawbacks", key=f"clear_cb_{selected_rep}"):
+        if role == "ADMIN":
+            if st.button("🗑️ Clear Test Clawbacks", key=f"clear_cb_{selected_rep}"):
 
-            clear_clawbacks(selected_rep)
+                clear_clawbacks(selected_rep)
 
-            st.success("Test clawbacks cleared successfully.")
-            st.rerun()
+                st.success("Test clawbacks cleared successfully.")
+                st.rerun()
 
-        saved_clawback = abs(get_total_clawback(selected_rep))
+            saved_clawback = abs(get_total_clawback(selected_rep))
 
-        final_eligible_comm = max(
-            summary["base_eligible_comm"]
-            + summary["multi_year_bonus_comm"]
-            - saved_clawback,
-            0.0
-        )
+            final_eligible_comm = max(
+                summary["base_eligible_comm"]
+                + summary["multi_year_bonus_comm"]
+                - saved_clawback,
+                0.0
+            )
 
-        payable_after_clawback = (
-            final_eligible_comm
-            * summary["payout_factor"]
-        )
+            payable_after_clawback = (
+                final_eligible_comm
+                * summary["payout_factor"]
+            )
 
-        remaining_after_payment = max(
-            payable_after_clawback
-            - get_total_paid(selected_rep),
-            0.0
-        )
+            remaining_after_payment = max(
+                payable_after_clawback
+                - get_total_paid(selected_rep),
+                0.0
+            )
     rows = [
         ("Annual Quota Goal", fmt_money(summary["quota"])),
         ("OTC", fmt_money(OTC_CONFIG.get(selected_rep, 0))),
