@@ -52,6 +52,7 @@ ROLE_CONFIG = {
         "nsimas@netwoven.com": "Nicholas Simas",
         "chris.wilkinson@netwoven.com": "Chris Wilkinson",
         "mandeep.nagpal@netwoven.com": "Mandeep Nagpal",
+        "sghara@netwoven.com": "Santanu Ghara",
     },
 }
 
@@ -62,7 +63,7 @@ rep_config = {
     "Nicholas Simas": {"rate": 0.008000, "quota": 7_500_000},
     "Chris Wilkinson": {"rate": 0.007200, "quota": 5_000_000},
     "Mandeep Nagpal": {"rate": 0.0087600, "quota": 1_500_000},
-}
+    }
 
 OTC_CONFIG = {
     "Angira Dey": 50_000,
