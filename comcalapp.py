@@ -1324,10 +1324,10 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
     with colp2:
         
 
-        clawback_projects = get_crm_projects_for_clawback(
-            dataverse_token,
-            selected_rep
-        )
+    clawback_projects = get_crm_projects_for_clawback(
+        dataverse_token,
+        selected_rep
+    )
 
     project_options = ["-- Select Project --"] + list(clawback_projects.keys())
 
@@ -1398,8 +1398,7 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
          st.info("Please select a clawbaaaack project.")
 
 
-  
-    with colp3:
+        with colp3:
             st.write("**Saved Totals**")
             st.write(f"Total Paid: {fmt_money(get_total_paid(selected_rep, quarter))}")
             st.write(f"Total Clawback: {fmt_money(get_total_clawback(selected_rep, quarter))}")
