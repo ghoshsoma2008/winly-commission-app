@@ -1324,81 +1324,82 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
     with colp2:
         
 
-    clawback_projects = get_crm_projects_for_clawback(
-        dataverse_token,
-        selected_rep
-    )
-
-    project_options = ["-- Select Project --"] + list(clawback_projects.keys())
-
-    selected_project_key = st.selectbox(
-        "Clawback Project",
-        project_options,
-        key=f"cb_project_{selected_rep}"
-    )
-
-    calculated_clawback = 0.0
-    cb_project = ""
-
-    if selected_project_key != "-- Select Project --":
-
-        project = clawback_projects[selected_project_key]
-
-        deal_value = float(project.get("deal_value", 0.0) or 0.0)
-        cb_project = selected_project_key
-
-        st.caption(f"CRM Project Amount: {fmt_money(deal_value)}")
-
-        invoiced_value = st.number_input(
-            "Actual / Invoiced Value",
-            min_value=0.0,
-            value=0.0,
-            step=1000.0,
-            key=f"invoiced_value_{selected_rep}"
+        clawback_projects = get_crm_projects_for_clawback(
+            dataverse_token,
+            selected_rep
         )
 
-        calculated_clawback = max(
-            (deal_value - invoiced_value) * float(summary.get("rate", 0.0)),
-            0.0
+        project_options = ["-- Select Project --"] + list(clawback_projects.keys())
+
+        selected_project_key = st.selectbox(
+            "Clawback Project",
+            project_options,
+            key=f"cb_project_{selected_rep}"
         )
 
-        st.text_input(
-            "Clawback Amount",
-            value=fmt_money(calculated_clawback),
-            disabled=True,
-            key=f"cb_amount_display_{selected_rep}"
-        )
-    if selected_project_key != "-- Select Project --":
+        calculated_clawback = 0.0
+        cb_project = ""
 
-        project = clawback_projects[selected_project_key]
+        if selected_project_key != "-- Select Project --":
+
+            project = clawback_projects[selected_project_key]
+
+            deal_value = float(project.get("deal_value", 0.0) or 0.0)
+            cb_project = selected_project_key
+
+            st.caption(f"CRM Project Amount: {fmt_money(deal_value)}")
+
+            invoiced_value = st.number_input(
+                "Actual / Invoiced Value",
+                min_value=0.0,
+                value=0.0,
+                step=1000.0,
+                key=f"invoiced_value_{selected_rep}"
+            )
+
+            calculated_clawback = max(
+                (deal_value - invoiced_value) * float(summary.get("rate", 0.0)),
+                0.0
+            )
+
+            st.text_input(
+                "Clawback Amount",
+                value=fmt_money(calculated_clawback),
+                disabled=True,
+                key=f"cb_amount_display_{selected_rep}"
+            )
+        if selected_project_key != "-- Select Project --":
+
+            project = clawback_projects[selected_project_key]
 
     # your deal value / invoiced value / calculated clawback code here
 
-        if st.button("Save Clawback", key=f"save_cb_{selected_rep}"):
+            if st.button("Save Clawback", key=f"save_cb_{selected_rep}"):
 
-            if calculated_clawback > 0:
+                if calculated_clawback > 0:
 
-                clawback_quarter = quarter
+                    clawback_quarter = quarter
 
-                add_clawback(
-                    selected_rep,
-                    cb_project,
-                    float(calculated_clawback),
-                    signed_in_upn,
-                    clawback_quarter
-                )
+                    add_clawback(
+                        selected_rep,
+                        cb_project,
+                        float(calculated_clawback),
+                        signed_in_upn,
+                        clawback_quarter
+                    )
 
-            st.success("Clawback saved successfully.")
-            st.rerun()
+                st.success("Clawback saved successfully.")
+                st.rerun()
 
-        else:
+            else:
                 st.warning("Clawback amount is zero.")
 
-    else:
-         st.info("Please select a clawbaaaack project.")
+        else:
+            st.info("Please select a clawbaaaack project.")
 
 
-        with colp3:
+  
+    with colp3:
             st.write("**Saved Totals**")
             st.write(f"Total Paid: {fmt_money(get_total_paid(selected_rep, quarter))}")
             st.write(f"Total Clawback: {fmt_money(get_total_clawback(selected_rep, quarter))}")
