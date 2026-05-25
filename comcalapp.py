@@ -1374,28 +1374,28 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
 
     # your deal value / invoiced value / calculated clawback code here
 
-    if st.button("Save Clawback", key=f"save_cb_{selected_rep}"):
+        if st.button("Save Clawback", key=f"save_cb_{selected_rep}"):
 
-        if calculated_clawback > 0:
+            if calculated_clawback > 0:
 
-            clawback_quarter = quarter
+                clawback_quarter = quarter
 
-            add_clawback(
-                selected_rep,
-                cb_project,
-                float(calculated_clawback),
-                signed_in_upn,
-                clawback_quarter
-            )
+                add_clawback(
+                    selected_rep,
+                    cb_project,
+                    float(calculated_clawback),
+                    signed_in_upn,
+                    clawback_quarter
+                )
 
             st.success("Clawback saved successfully.")
             st.rerun()
 
         else:
-            st.warning("Clawback amount is zero.")
+                st.warning("Clawback amount is zero.")
 
     else:
-        st.info("Please select a clawback project.")
+         st.info("Please select a clawbaaaack project.")
 
 
   
