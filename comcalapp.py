@@ -426,7 +426,7 @@ def set_view(view, selected_rep=None):
 # AUTH
 # =====================================================
 def _load_cache():
-    cache = msal.SerializableTokenCache()
+    return msal.SerializableTokenCache()
     if os.path.exists(CACHE_PATH):
         try:
             with open(CACHE_PATH, "r", encoding="utf-8") as f:
@@ -437,12 +437,7 @@ def _load_cache():
 
 
 def _save_cache(cache):
-    if cache.has_state_changed:
-        try:
-            with open(CACHE_PATH, "w", encoding="utf-8") as f:
-                f.write(cache.serialize())
-        except Exception:
-            pass
+    pass
 
 
 def get_msal_app():
@@ -989,7 +984,7 @@ def render_sidebar(signed_in_upn, role):
             unsafe_allow_html=True,
         )
         if st.button("↪  Logout", use_container_width=True, key="logout_btn"):
-            for k in ["graph_token", "dataverse_token", "signed_in_upn", "view", "selected_rep"]:
+            for k in list(st.session_state.keys()):
                 st.session_state.pop(k, None)
             st.session_state["logged_out"] = True
             clear_query_params()
@@ -1370,10 +1365,6 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
             )
         if selected_project_key != "-- Select Project --":
 
-            project = clawback_projects[selected_project_key]
-
-    # your deal value / invoiced value / calculated clawback code here
-
             if st.button("Save Clawback", key=f"save_cb_{selected_rep}"):
 
                 if calculated_clawback > 0:
@@ -1383,20 +1374,19 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
                     add_clawback(
                         selected_rep,
                         cb_project,
-                        float(calculated_clawback),
-                        signed_in_upn,
-                        clawback_quarter
+                    float(calculated_clawback),
+                    signed_in_upn,
+                    clawback_quarter
                     )
 
-                st.success("Clawback saved successfully.")
-                st.rerun()
+                    st.success("Clawback saved successfully.")
+                    st.rerun()
+
+                else:
+                    st.warning("Clawback amount is zero.")
 
             else:
-                st.warning("Clawback amount is zero.")
-
-        else:
-            st.info("Please select a clawbaaaack project.")
-
+                st.info("Please select a clawback project.")
 
   
     with colp3:
