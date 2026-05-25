@@ -1424,27 +1424,27 @@ def render_detail_view(df_all, selected_rep, role, signed_in_upn, dataverse_toke
                 - get_total_paid(selected_rep),
                 0.0
             )
-else:
+    else:
 
-    saved_clawback = abs(get_total_clawback(selected_rep))
+        saved_clawback = abs(get_total_clawback(selected_rep))
 
-    final_eligible_comm = max(
-        summary["base_eligible_comm"]
-        + summary["multi_year_bonus_comm"]
-        - saved_clawback,
-        0.0
-    )
+        final_eligible_comm = max(
+            summary["base_eligible_comm"]
+            + summary["multi_year_bonus_comm"]
+            - saved_clawback,
+            0.0
+        )
 
-    payable_after_clawback = (
-        final_eligible_comm
-        * summary["payout_factor"]
-    )
+        payable_after_clawback = (
+            final_eligible_comm
+            * summary["payout_factor"]
+        )
 
-    remaining_after_payment = max(
-        payable_after_clawback
-        - get_total_paid(selected_rep),
-        0.0
-    )
+        remaining_after_payment = max(
+            payable_after_clawback
+            - get_total_paid(selected_rep),
+            0.0
+        )
     rows = [
         ("Annual Quota Goal", fmt_money(summary["quota"])),
         ("OTC", fmt_money(OTC_CONFIG.get(selected_rep, 0))),
