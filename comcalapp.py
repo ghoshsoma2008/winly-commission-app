@@ -1679,12 +1679,24 @@ def main():
             st.rerun()
         st.stop()
 
-    graph_token = get_token_for_scopes(GRAPH_SCOPES, "graph_token")
+    if "graph_token" not in st.session_state:
+
+        st.session_state["graph_token"] = get_token_for_scopes(
+            GRAPH_SCOPES,
+            "graph_token"
+            )
+
+    graph_token = st.session_state["graph_token"]
     signed_in_upn = get_logged_in_user_upn(graph_token)
 
-    dataverse_token = get_token_for_scopes(
-        DATAVERSE_SCOPES,
-        "dataverse_token"
+    if "dataverse_token" not in st.session_state:
+
+        st.session_state["dataverse_token"] = get_token_for_scopes(
+            DATAVERSE_SCOPES,
+            "dataverse_token"
+        )
+
+    dataverse_token = st.session_state["dataverse_token"]
     )
 
     # =====================================================
