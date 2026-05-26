@@ -50,7 +50,7 @@ ROLE_CONFIG = {
     "users": {
         "adey@netwoven.com": "Angira Dey",
         "nsimas@netwoven.com": "Nicholas Simas",
-        "chris.wilkinson@netwoven.com": "Chris Wilkinson",
+        "sghara@netwoven.com": "Chris Wilkinson",
         "mandeep.nagpal@netwoven.com": "Mandeep Nagpal",
         "sghara@netwoven.com": "Santanu Ghara",
     },
