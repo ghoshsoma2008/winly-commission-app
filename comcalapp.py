@@ -52,7 +52,7 @@ ROLE_CONFIG = {
         "nsimas@netwoven.com": "Nicholas Simas",
         "sghara@netwoven.com": "Chris Wilkinson",
         "mandeep.nagpal@netwoven.com": "Mandeep Nagpal",
-        "sghara@netwoven.com": "Santanu Ghara",
+        
     },
 }
 
