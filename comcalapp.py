@@ -1697,8 +1697,7 @@ def main():
         )
 
     dataverse_token = st.session_state["dataverse_token"]
-    )
-
+    
     # =====================================================
     # ADD THIS BLOCK HERE
     # =====================================================
